@@ -4,7 +4,7 @@ sfzt 套娃包装 AU —— 以后再编译怎么操作
 
 ## 一条命令编一个
 
-cd /Volumes/Toshiba/Deepseek/sfzt-work
+cd /Volumes/Toshiba/Deepseek/音乐插件/源码/sfzt-work
 ./build.sh "<VST3绝对路径>" "<输出.component>" "<显示名>" <类型> <4字符subtype> <厂商码>
 
 例（重编已有的三个）：
@@ -31,7 +31,7 @@ sfzt-work/              源码（fork cccccchhhh899789/sfzt_auwrapper 分支 wra
   Info.plist.template   AU 注册模板
   sdk/                  VST3 SDK 3.7.10 三仓 + CoreAudioUtilityClasses（1112 文件已校验）
 产物已装  ~/Library/Audio/Plug-Ins/Components/{ShrubAU,BPB64AU,LOFIPandaAU}.component
-归档      插件存档/sfzt包装AU_20261120/
+归档      音乐插件/sfzt包装AU_20261120/
 
 ## 产物依赖关系（重要）
 
