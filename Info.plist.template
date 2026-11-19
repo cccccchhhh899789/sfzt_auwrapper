@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>English</string>
+	<key>CFBundleExecutable</key>
+	<string>SFZWEXEC</string>
+	<key>CFBundleIdentifier</key>
+	<string>com.sfztwrap.SFZWSUB</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleName</key>
+	<string>SFZWNAME</string>
+	<key>CFBundlePackageType</key>
+	<string>BNDL</string>
+	<key>CFBundleSignature</key>
+	<string>????</string>
+	<key>CFBundleVersion</key>
+	<string>1.0</string>
+	<key>CFBundleShortVersionString</key>
+	<string>1.0</string>
+	<key>LSMinimumSystemVersion</key>
+	<string>10.13</string>
+	<key>NSHighResolutionCapable</key>
+	<true/>
+	<key>WrappedVST3Path</key>
+	<string>SFZWPATH</string>
+	<key>AudioUnit Version</key>
+	<string>00010000</string>
+	<key>AudioComponents</key>
+	<array>
+		<dict>
+			<key>name</key>
+			<string>SFZWMANUF: SFZWNAME (sfzt wrap)</string>
+			<key>description</key>
+			<string>SFZWNAME wrapped from VST3 (sfzt dlopen)</string>
+			<key>factoryFunction</key>
+			<string>AUWrapperFactory</string>
+			<key>manufacturer</key>
+			<string>SFZWMANUF</string>
+			<key>type</key>
+			<string>SFZWTYPE</string>
+			<key>subtype</key>
+			<string>SFZWSUB</string>
+			<key>version</key>
+			<integer>65536</integer>
+			<key>sandboxSafe</key>
+			<true/>
+		</dict>
+	</array>
+</dict>
+</plist>

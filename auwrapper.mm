@@ -77,10 +77,65 @@ Things to do :
 #define SMTG_MAKE_STRING_PRIVATE_DONT_USE(x) #x
 #define SMTG_MAKE_STRING(x) SMTG_MAKE_STRING_PRIVATE_DONT_USE (x)
 
-extern "C" {
-SMTG_EXPORT_SYMBOL bool bundleEntry (CFBundleRef);
-SMTG_EXPORT_SYMBOL bool bundleExit (void);
+// [sfzt-dlopen-patch] 原版是链接期 extern 符号（静态链插件源码）。
+// 改为运行时 dlopen 被包 VST3 + dlsym 取符号，路径来自本 AU Info.plist 的 WrappedVST3Path。
+#import <Foundation/Foundation.h>
+namespace Steinberg { namespace WrappedModule {
+typedef bool (*BundleEntryFn) (CFBundleRef);
+typedef bool (*BundleExitFn) (void);
+typedef IPluginFactory* (*GetFactoryFn) ();
+inline GetFactoryFn getFactory = nullptr;
+inline BundleEntryFn bundleEntry = nullptr;
+inline BundleExitFn bundleExit = nullptr;
+inline void* dlHandle = nullptr;
+inline CFBundleRef wrappedBundle = nullptr;
+
+inline bool load (CFBundleRef auBundle)
+{
+	if (dlHandle)
+		return true;
+	CFStringRef pathStr = (CFStringRef)CFBundleGetValueForInfoDictionaryKey (auBundle, CFSTR ("WrappedVST3Path"));
+	if (!pathStr)
+		return false;
+	char path[4096];
+	if (!CFStringGetCString (pathStr, path, sizeof (path), kCFStringEncodingUTF8))
+		return false;
+	NSString* vst3 = [NSString stringWithUTF8String:path];
+	NSString* execPath = [vst3 stringByAppendingPathComponent:@"Contents/MacOS"];
+	// list executables inside Contents/MacOS and dlopen the first one exporting the VST3 entry points
+	NSFileManager* fm = [NSFileManager defaultManager];
+	NSError* err = nil;
+	NSArray* entries = [fm contentsOfDirectoryAtPath:execPath error:&err];
+	for (NSString* e in entries)
+	{
+		NSString* full = [execPath stringByAppendingPathComponent:e];
+		if ([e hasPrefix:@"."] || ![fm fileExistsAtPath:full])
+			continue;
+		void* h = dlopen ([full UTF8String], RTLD_NOW);
+		if (!h)
+			continue;
+		bundleEntry = (BundleEntryFn)dlsym (h, "bundleEntry");
+		bundleExit = (BundleExitFn)dlsym (h, "bundleExit");
+		getFactory = (GetFactoryFn)dlsym (h, "GetPluginFactory");
+		if (bundleEntry && getFactory)
+		{
+			dlHandle = h;
+			wrappedBundle = CFBundleCreate (kCFAllocatorDefault,
+			    (CFURLRef)[NSURL fileURLWithPath:vst3 isDirectory:YES]);
+			return true;
+		}
+		dlclose (h);
+	}
+	return false;
 }
+inline void unload ()
+{
+	if (dlHandle) { dlclose (dlHandle); dlHandle = nullptr; }
+	if (wrappedBundle) { CFRelease (wrappedBundle); wrappedBundle = nullptr; }
+	bundleEntry = nullptr; bundleExit = nullptr; getFactory = nullptr;
+}
+} }
+using namespace Steinberg::WrappedModule;
 
 #include <dlfcn.h>
 
@@ -106,10 +161,6 @@ static bool CopyProcessPath (Steinberg::String& name)
 
 namespace Steinberg {
 
-extern "C" {
-SMTG_EXPORT_SYMBOL IPluginFactory* PLUGIN_API GetPluginFactory ();
-}
-
 //------------------------------------------------------------------------
 class VST3DynLibrary : public FObject
 {
@@ -120,17 +171,23 @@ public:
 	{
 		if (bundleEntryCalled)
 		{
-			bundleExit ();
+			if (bundleExit)
+				bundleExit ();
+			bundleExit = nullptr;
 		}
 
 		gInstance = 0;
 	}
 
-	bool init (CFBundleRef bundle)
+	bool init (CFBundleRef /*auBundle*/)
 	{
 		if (!bundleEntryCalled)
 		{
-			bundleEntryCalled = bundleEntry (bundle);
+			if (!load (Vst::AUWrapper::gBundleRef))
+				return false;
+			bundleEntryCalled = bundleEntry ? bundleEntry (wrappedBundle) : false;
+			if (!bundleEntryCalled)
+				unload ();
 		}
 
 		return bundleEntryCalled;
@@ -624,7 +681,7 @@ IPluginFactory* AUWrapper::getFactory ()
 {
 	if (VST3DynLibrary::gInstance)
 	{
-		return GetPluginFactory ();
+		return Steinberg::WrappedModule::getFactory ? Steinberg::WrappedModule::getFactory () : 0;
 	}
 	return 0;
 }
