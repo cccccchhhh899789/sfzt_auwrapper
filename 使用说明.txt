@@ -1,0 +1,61 @@
+sfzt 套娃包装 AU —— 以后再编译怎么操作
+======================================
+（2026-11-20 首批：Shrub / BPB 64 / LOFI PANDA；交接单待办 24 有完整背景）
+
+## 一条命令编一个
+
+cd /Volumes/Toshiba/Deepseek/sfzt-work
+./build.sh "<VST3绝对路径>" "<输出.component>" "<显示名>" <类型> <4字符subtype> <厂商码>
+
+例（重编已有的三个）：
+./build.sh "/Library/Audio/Plug-Ins/VST3/Shrub.vst3"          /tmp/ShrubAU.component "Shrub"          aumu Shrb SFZW
+./build.sh "/Library/Audio/Plug-Ins/VST3/BPB 64.vst3"         /tmp/BPB64AU.component "BPB 64"         aumu Bpb4 SFZW
+./build.sh "/Library/Audio/Plug-Ins/VST3/LOFI PANDA.vst3"     /tmp/LOFIPandaAU.component "LOFI PANDA" aumu LfiP SFZW
+
+新插件 = 换前两个参数 + 自定一个不重复的 4 字符 subtype（避开已有 AU 四字符码）。
+效果器用 aufx（会自动用 AUEffectBase 之外的基类吗？——不会自动，见下方"改类型"）。
+
+## 编完三步装机验证
+
+1. 装（需管理员弹窗，danger-full-access）：
+   cp -R /tmp/XXX.component ~/Library/Audio/Plug-Ins/Components/
+   chmod -R go+rX ~/Library/Audio/Plug-Ins/Components/XXX.component
+2. 验证：auval -v aumu <subtype> SFZW    ← 全部 PASS = 过
+3. 你重启 Logic → 软件乐器轨道插件列表找 "SFZW: <名字> (sfzt wrap)"
+
+## 目录与依赖（全在外接盘，勿删）
+
+sfzt-work/              源码（fork cccccchhhh899789/sfzt_auwrapper 分支 wrap-shrub）
+  build.sh              构建脚本（SDK 默认指向下面的 sdk/）
+  auwrapper.mm          ← dlopen 补丁就在这个文件，搜 sfzt-dlopen-patch
+  Info.plist.template   AU 注册模板
+  sdk/                  VST3 SDK 3.7.10 三仓 + CoreAudioUtilityClasses（1112 文件已校验）
+产物已装  ~/Library/Audio/Plug-Ins/Components/{ShrubAU,BPB64AU,LOFIPandaAU}.component
+归档      插件存档/sfzt包装AU_20261120/
+
+## 产物依赖关系（重要）
+
+component 是"壳"，运行时按 Info.plist 的 WrappedVST3Path 绝对路径 dlopen 原 VST3。
+→ 原 .vst3 和它的 .instruments 数据目录不能删、不能挪；换机两边一起带走。
+→ 想要自包含版（插件拷进壳 Resources），改 build.sh 第 4 阶段 + 让 dlopen 优先找包内，再重编。
+
+## 踩过的坑（重编时别再踩）
+
+1. CLT 的 libc++ 头残缺（<vector> 找不到）→ 脚本已带 -nostdinc++ 绕法，勿改。
+2. ObjC 类前缀 = SFZW<subtype>_（每包必须唯一），脚本已实现；build-tmp 目录也按 subtype
+   隔离。症状 "Class X is implemented in both" = 前缀撞了。
+3. 同 subtype 重复编译会用到旧 .o → 重编前删 build-tmp-<subtype>/。
+4. 产品内置 VST3 SDK 与外置的 IID 重复（hostdataexchangehandler）→ 脚本已跳过。
+5. 编译中途失败看 /tmp/…log；链接期缺符号=缺源文件，对照官方清单（public.sdk/source/vst/hosting/*）。
+6. GitHub 直连抽风时下载 SDK：用 gh-proxy.com 镜像 tarball，且必须 file 验真（镜像可能
+   回 404 页冒充 tar.gz）；正确 tag=v3.7.10_build_14（base 仓真名 vst3_base）。
+7. sudo/管理员语法：osascript -e 'do shell script "rm -rf \"/path\"" with administrator privileges'
+   （路径内嵌+外层单引号，见交接单 10.9）。
+
+## 类型（type）速查
+
+aumu = 乐器（MusicDeviceBase）—— 本批三个都是
+aufx = 音频效果器——注意：当前 auwrapper.h 用 CA_USE_AUDIO_PLUGIN_ONLY 开关选基类，
+      效果器版需在编译定义里加 -DCA_USE_AUDIO_PLUGIN_ONLY=0 之类并验证，未实测过，
+      第一次用 aufx 前先试编 auval 验证。
+aumf = 音乐效果器（带 MIDI），sfzt 支持与否未测。
